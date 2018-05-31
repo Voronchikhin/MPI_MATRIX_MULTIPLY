@@ -141,37 +141,25 @@ void collectResult(double localC[], MPI_Comm subComms[], double resultC[], const
     if(rankX==0){
         partC = new double[K*inColSizes[rankY]];
     }
-    int displs[procSize];
-    int recvcounts[procSize];
-    displs[0] = 0;
-    recvcounts[0] = inRowSizes[0] * inColSizes[rankY];
-    for (int i = 1; i < procsInDirection[0]; ++i) {
-        displs[i] = displs[i-1] + recvcounts[i-1];
-        recvcounts[i] = inRowSizes[i]*inColSizes[rankY];
-    }
-/*    if( rankX==0 ){
-        for(int a : displs){
-            std::cout<<a<<" ";
-        }
-        std::cout<<std::endl;
-    }*/
-    MPI_Gatherv(localC, inColSizes[rankY]*inRowSizes[rankX], MPI_DOUBLE, partC, recvcounts, displs,MPI_DOUBLE,0,subComms[0]);
-    if(rankX==0){
-        partC = transpose(partC,  K,inColSizes[rankY]);
-        /*for(int i = 0; i < inColSizes[rankY]*K; ++i ){
-            std::cout<<" "<<partC[i];
-        }
-        std::cout<<std::endl;*/
-    }
+    MPI_Datatype subcol, longSubCol, recRow;
+    MPI_Type_vector(inColSizes[rankY],1,inRowSizes[rankX], MPI_DOUBLE, &subcol);
+    MPI_Type_create_resized(subcol,0, sizeof(double),&subcol);
+    MPI_Type_vector(inColSizes[rankY],1,K,MPI_DOUBLE,&longSubCol);
+    MPI_Type_create_resized(subcol,0, sizeof(double),&longSubCol);
+    MPI_Type_vector(1,K,K,MPI_DOUBLE,&recRow);
+    MPI_Type_commit(&recRow);
+    MPI_Type_commit(&subcol);
+    MPI_Type_commit(&longSubCol);
 
-    displs[0] = 0;
-    recvcounts[0] = K * inColSizes[0];
-    for (int i = 1; i < procsInDirection[1]; ++i) {
-        displs[i] = displs[i-1] + recvcounts[i-1];
-        recvcounts[i] = K*inColSizes[i];
-    }
+MPI_Gatherv(localC, inRowSizes[rankX], subcol, partC, inRowSizes.data(), inRowDispls.data(), longSubCol,0,subComms[0]);
+MPI_Type_free(&subcol);
+MPI_Type_free(&longSubCol);
+MPI_Type_free(&recRow);
+
+
     if(rankX==0) {
-        MPI_Gatherv(partC, recvcounts[rankY], MPI_DOUBLE, resultC, recvcounts,displs, MPI_DOUBLE,0,subComms[1]);
+        MPI_Gatherv(partC, inColSizes[rankY], recRow, resultC, inColSizes.data(), inColDispls.data(), recRow,0,subComms[1]);
+        //MPI_Gatherv(partC, recvcounts[rankY], MPI_DOUBLE, resultC, recvcounts,displs, MPI_DOUBLE,0,subComms[1]);
         delete[] partC;
     }
 }
