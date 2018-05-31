@@ -144,8 +144,10 @@ void collectResult(double localC[], MPI_Comm subComms[], double resultC[], const
     MPI_Datatype subcol, longSubCol, recRow;
     MPI_Type_vector(inColSizes[rankY],1,inRowSizes[rankX], MPI_DOUBLE, &subcol);
     MPI_Type_create_resized(subcol,0, sizeof(double),&subcol);
+
     MPI_Type_vector(inColSizes[rankY],1,K,MPI_DOUBLE,&longSubCol);
-    MPI_Type_create_resized(subcol,0, sizeof(double),&longSubCol);
+    MPI_Type_create_resized(longSubCol,0, sizeof(double),&longSubCol);
+
     MPI_Type_vector(1,K,K,MPI_DOUBLE,&recRow);
     MPI_Type_commit(&recRow);
     MPI_Type_commit(&subcol);
@@ -153,15 +155,14 @@ void collectResult(double localC[], MPI_Comm subComms[], double resultC[], const
 
 MPI_Gatherv(localC, inRowSizes[rankX], subcol, partC, inRowSizes.data(), inRowDispls.data(), longSubCol,0,subComms[0]);
 MPI_Type_free(&subcol);
-MPI_Type_free(&longSubCol);
-MPI_Type_free(&recRow);
 
 
     if(rankX==0) {
         MPI_Gatherv(partC, inColSizes[rankY], recRow, resultC, inColSizes.data(), inColDispls.data(), recRow,0,subComms[1]);
-        //MPI_Gatherv(partC, recvcounts[rankY], MPI_DOUBLE, resultC, recvcounts,displs, MPI_DOUBLE,0,subComms[1]);
         delete[] partC;
     }
+    MPI_Type_free(&longSubCol);
+    MPI_Type_free(&recRow);
 }
 
 double *transpose(double *pDouble, int inColsSize, int inRowsSize) {
@@ -200,7 +201,7 @@ int main(int argc, char** argv) {
     for( int i = 0; i < inRowSizes[rankX]; ++i ){
         for( int j = 0 ; j < inColSizes[rankY]; ++j ){
             for( int k = 0; k < M; ++k ){
-                localC[ j* inRowSizes[rankX] + i] += localA[j*M + k]*localB[i*M + k];
+                localC[ j* inRowSizes[rankX] + i]  += localA[j*M + k]*localB[i*M + k];
             }
         }
     }
